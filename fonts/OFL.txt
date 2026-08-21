@@ -1,0 +1,10 @@
+Шрифти в цій теці поширюються за SIL Open Font License 1.1.
+
+  Oswald        — https://fonts.google.com/specimen/Oswald
+  EB Garamond   — https://fonts.google.com/specimen/EB+Garamond
+  Source Sans 3 — https://github.com/adobe-fonts/source-sans
+
+Повний текст ліцензії: https://openfontlicense.org/open-font-license-official-text/
+
+Японська гарнітура, з якої збирається шрифт із кирилицею, береться з вашої власної
+копії гри під час встановлення і нікуди не поширюється.

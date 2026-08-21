@@ -1,0 +1,52 @@
+MIT License (код інсталятора)
+
+Copyright (c) 2026 ryukano
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Ліцензія MIT вище стосується ЛИШЕ коду: тека `patcher/`, `build_exe.py`, а також
+таблиці `data/config_ui.py` і `data/ui_sprites_table.py` — це код, хоч і лежить
+поруч із даними.
+
+--------------------------------------------------------------------------------
+
+Переклад і документація — Creative Commons BY-NC-SA 4.0.
+Стосується `data/scenario_ua.tsv`, `data/extras_ua.tsv` і теки `docs/`.
+https://creativecommons.org/licenses/by-nc-sa/4.0/deed.uk
+
+Коротко: користуйтеся, змінюйте й поширюйте — некомерційно, зі згадкою джерела
+й на тих самих умовах.
+
+--------------------------------------------------------------------------------
+
+Шрифти в теці `fonts/` — під SIL Open Font License 1.1, поширюються без змін:
+Oswald (Vernon Adams, Kalapi Gajjar, Cyreal), EB Garamond (Georg Duffner,
+Octavio Pardo), Source Sans 3 (Adobe Systems). Тексти ліцензій — у fonts/OFL.txt.
+
+Окремо про шрифт, яким гра малює текст. Інсталятор збирає його НА ВАШОМУ
+КОМП'ЮТЕРІ з двох джерел: японської гарнітури, яка вже є у вашій копії гри, і
+Source Sans 3 із теки `fonts/`. Готовий файл не входить до цього репозиторію й
+нікуди не поширюється — він існує лише у вашій установці гри.
+
+--------------------------------------------------------------------------------
+
+STEINS;GATE та всі пов'язані назви, персонажі й матеріали належать їхнім
+правовласникам (5pb./MAGES., Nitroplus, Spike Chunsoft). Цей проєкт
+неофіційний, некомерційний і НЕ МІСТИТЬ ЖОДНИХ ФАЙЛІВ ГРИ: інсталятор працює
+з архівами вашої власної копії, а оригінали зберігає поруч для відкату.
