@@ -62,12 +62,24 @@ def keystream(full_key: str, key_len: int = 131) -> bytes:
 
 
 def xor_body(data: bytes, full_key: str, key_len: int = 131, keep_header: int = 8) -> bytes:
+    """XOR тіла циклічним ключем.
+
+    Побайтовий цикл на Python давав ~14 МБ/с, а через цю функцію кожен запис проходить двічі
+    (розпакування й запакування), тож на встановленні це були десятки секунд. Той самий XOR
+    великими цілими — ~320 МБ/с. Ріжемо на шматки, кратні довжині ключа: так кожен шматок
+    починається з нульового зсуву ключа, і пам'ять не росте разом із розміром запису.
+    """
     ks = keystream(full_key, key_len)
-    head, body = data[:keep_header], data[keep_header:]
     n = len(ks)
-    out = bytearray(body)
-    for i in range(len(out)):
-        out[i] ^= ks[i % n]
+    head, body = data[:keep_header], data[keep_header:]
+    step = max(n, (1 << 22) // n * n)          # ~4 МБ, вирівняно на довжину ключа
+    out = bytearray(len(body))
+    for pos in range(0, len(body), step):
+        block = body[pos:pos + step]
+        mask = (ks * (len(block) // n + 1))[:len(block)]
+        out[pos:pos + len(block)] = (
+            int.from_bytes(block, "little") ^ int.from_bytes(mask, "little")
+        ).to_bytes(len(block), "little")
     return head + bytes(out)
 
 
@@ -87,7 +99,9 @@ def unshell(data: bytes, key: str | None, name: str, key_len: int = 131) -> byte
     raise ValueError(f"невідома оболонка {magic!r}")
 
 
-def enshell(raw: bytes, magic: bytes, key: str | None, name: str, key_len: int = 131, level: int = 19) -> bytes:
+# рівень 10 замість 19: на справжньому записі гри (29 МБ) це 0.44 с проти 6.19 с при
+# різниці в розмірі 4.66 проти 4.09 МБ. Стиснення на встановленні коштувало 150 с зі 180.
+def enshell(raw: bytes, magic: bytes, key: str | None, name: str, key_len: int = 131, level: int = 10) -> bytes:
     if magic == b"mzs\0":
         import zstandard as zstd
         payload = zstd.ZstdCompressor(level=level).compress(raw)

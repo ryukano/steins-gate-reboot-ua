@@ -16,7 +16,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
+# сусідні модулі лежать поруч: у робочому репозиторії це tools/, у публічному — patcher/
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from psb import Psb, PsbRes, UArr  # noqa: E402
 from m2archive import Archive  # noqa: E402
 

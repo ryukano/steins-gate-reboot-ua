@@ -41,14 +41,26 @@ def main() -> int:
     try:
         code = patch.main()
     except SystemExit as e:
-        print(f"\n{e}")
+        # argparse завершує роботу через SystemExit(0) на --help: це не помилка
+        if isinstance(e.code, int):
+            code = e.code
+        else:
+            print(f"\n{e}")
+            code = 1
+    except PermissionError as e:
+        # найтиповіша помилка: запустили інсталятор, не закривши гру
+        print(f"\nФайл зайнятий: {e.filename}")
+        print("Закрийте гру (і Steam, якщо він саме її оновлює) і спробуйте ще раз.")
         code = 1
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         print("\nЩось пішло не так. Надішліть цей текст у issue — розберемося.")
         code = 1
     if sys.stdout.isatty():
-        input("\nНатисніть Enter, щоб закрити…")
+        try:
+            input("\nНатисніть Enter, щоб закрити…")
+        except (EOFError, KeyboardInterrupt):
+            pass
     return code
 
 

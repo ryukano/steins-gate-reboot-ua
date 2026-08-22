@@ -6,7 +6,8 @@
 і перемальовані написи, складає назад. Оригінали зберігаються поруч у теці `_orig` — звідти ж
 працює відкат.
 
-    python -m patcher.patch                      — знайти гру самому й поставити все
+    python -m patcher.patch                      — спитати, що робити, і зробити
+    python -m patcher.patch --install            — ставити без запитання
     python -m patcher.patch --game "D:\\Steam\\steamapps\\common\\SGRE"
     python -m patcher.patch --restore            — повернути англійську
     python -m patcher.patch --only scenario ui   — лише частини (scenario, config, font, ui)
@@ -20,6 +21,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -44,20 +46,44 @@ def log(msg: str):
 
 
 def steam_root() -> Path | None:
-    """Куди встановлено сам Steam — питаємо реєстр, а не вгадуємо."""
-    try:
-        import winreg
-    except ImportError:
-        return None
-    for hive, key, name in (
-        (winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
-        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Valve\Steam", "InstallPath"),
-    ):
+    """Куди встановлено сам Steam.
+
+    На Windows питаємо реєстр, а не вгадуємо. На Linux (зокрема Steam Deck) і macOS реєстру
+    немає, тож перебираємо відомі місця: у Deck це ~/.local/share/Steam, а Flatpak-версія
+    ховає все у ~/.var/app. Ознака справжнього кореня — тека steamapps усередині.
+    """
+    if sys.platform == "win32":
         try:
-            with winreg.OpenKey(hive, key) as k:
-                p = Path(winreg.QueryValueEx(k, name)[0])
-            if p.is_dir():
+            import winreg
+        except ImportError:
+            return None
+        for hive, key, name in (
+            (winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam", "SteamPath"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Valve\Steam", "InstallPath"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Valve\Steam", "InstallPath"),
+        ):
+            try:
+                with winreg.OpenKey(hive, key) as k:
+                    p = Path(winreg.QueryValueEx(k, name)[0])
+                if p.is_dir():
+                    return p
+            except OSError:
+                continue
+        return None
+
+    home = Path.home()
+    if sys.platform == "darwin":
+        candidates = [home / "Library" / "Application Support" / "Steam"]
+    else:
+        candidates = [
+            home / ".local" / "share" / "Steam",                              # Steam Deck і типовий Linux
+            home / ".steam" / "steam",                                        # старіше розташування
+            home / ".steam" / "root",
+            home / ".var" / "app" / "com.valvesoftware.Steam" / "data" / "Steam",  # Flatpak
+        ]
+    for p in candidates:
+        try:
+            if (p / "steamapps").is_dir():
                 return p
         except OSError:
             continue
@@ -115,10 +141,39 @@ def _as_game_dir(p: Path | None, max_depth: int = 6, max_dirs: int = 8000) -> Pa
     return None
 
 
+def _pick_folder_posix(title: str) -> Path | None:
+    """Діалог вибору теки поза Windows: у Steam Deck (KDE) є kdialog, у GNOME — zenity."""
+    import subprocess
+    if sys.platform == "darwin":
+        cmds = [["osascript", "-e",
+                 f'POSIX path of (choose folder with prompt "{title}")']]
+    else:
+        cmds = [["kdialog", "--title", title, "--getexistingdirectory", str(Path.home())],
+                ["zenity", "--file-selection", "--directory", "--title", title]]
+    for cmd in cmds:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        except (OSError, subprocess.SubprocessError):
+            continue                       # такої програми немає — пробуємо наступну
+        out = r.stdout.strip()
+        return Path(out) if r.returncode == 0 and out else None
+    return None
+
+
+def has_folder_dialog() -> bool:
+    """Чи є чим показати вибір теки — щоб не обіцяти вікно, якого не буде."""
+    if sys.platform == "win32":
+        return True
+    import shutil as _sh
+    if sys.platform == "darwin":
+        return _sh.which("osascript") is not None
+    return any(_sh.which(c) for c in ("kdialog", "zenity"))
+
+
 def pick_folder(title: str) -> Path | None:
-    """Рідний віндовий діалог вибору теки: самий shell32, нічого зайвого в збірку не тягне."""
+    """Рідний діалог вибору теки. Нічого зайвого в збірку не тягне."""
     if sys.platform != "win32":
-        return None
+        return _pick_folder_posix(title)
     try:
         import ctypes
         from ctypes import wintypes
@@ -149,9 +204,79 @@ def pick_folder(title: str) -> Path | None:
         return None
 
 
+def task_dialog(title: str, question: str, buttons: list[tuple[int, str]]) -> int | None:
+    """Вікно з великими кнопками (TaskDialog). None — якщо система його не показала."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class TDBUTTON(ctypes.Structure):          # обидві структури пакуються по 1 байту
+            _pack_ = 1
+            _fields_ = [("nButtonID", ctypes.c_int), ("pszButtonText", wintypes.LPCWSTR)]
+
+        class TDCONFIG(ctypes.Structure):
+            _pack_ = 1
+            _fields_ = [
+                ("cbSize", wintypes.UINT), ("hwndParent", wintypes.HWND),
+                ("hInstance", wintypes.HINSTANCE), ("dwFlags", wintypes.UINT),
+                ("dwCommonButtons", wintypes.UINT), ("pszWindowTitle", wintypes.LPCWSTR),
+                ("pszMainIcon", wintypes.LPCWSTR), ("pszMainInstruction", wintypes.LPCWSTR),
+                ("pszContent", wintypes.LPCWSTR), ("cButtons", wintypes.UINT),
+                ("pButtons", ctypes.POINTER(TDBUTTON)), ("nDefaultButton", ctypes.c_int),
+                ("cRadioButtons", wintypes.UINT), ("pRadioButtons", ctypes.POINTER(TDBUTTON)),
+                ("nDefaultRadioButton", ctypes.c_int), ("pszVerificationText", wintypes.LPCWSTR),
+                ("pszExpandedInformation", wintypes.LPCWSTR),
+                ("pszExpandedControlText", wintypes.LPCWSTR),
+                ("pszCollapsedControlText", wintypes.LPCWSTR), ("pszFooterIcon", wintypes.LPCWSTR),
+                ("pszFooter", wintypes.LPCWSTR), ("pfCallback", ctypes.c_void_p),
+                ("lpCallbackData", ctypes.c_void_p), ("cxWidth", wintypes.UINT)]
+
+        arr = (TDBUTTON * len(buttons))(*buttons)
+        cfg = TDCONFIG()
+        cfg.cbSize = ctypes.sizeof(TDCONFIG)
+        cfg.dwFlags = 0x0010               # великі кнопки-посилання
+        cfg.dwCommonButtons = 0x0008       # «Скасувати»
+        cfg.pszWindowTitle = title
+        cfg.pszMainInstruction = question
+        cfg.cButtons = len(buttons)
+        cfg.pButtons = arr
+        cfg.nDefaultButton = buttons[0][0]
+        out = ctypes.c_int()
+        hr = ctypes.windll.comctl32.TaskDialogIndirect(ctypes.byref(cfg), ctypes.byref(out), None, None)
+        return out.value if hr == 0 else None
+    except Exception:  # noqa: BLE001 — вікно не критичне, нижче є консольне меню
+        return None
+
+
+def ask_action() -> str | None:
+    """Ключів не задано — питаємо, що робити. None означає «вийти»."""
+    pick = task_dialog(
+        "Українізатор STEINS;GATE RE:BOOT", "Що зробити?",
+        [(101, "Встановити українізатор\nУкраїнський текст стане в англійський слот гри"),
+         (102, "Повернути англійську\nВідкотити гру до оригіналу; збереження не постраждають")])
+    if pick == 101:
+        return "install"
+    if pick == 102:
+        return "restore"
+    if pick is not None:
+        return None                       # натиснули «Скасувати» або закрили вікно
+    try:                                  # вікна немає — питаємо в консолі
+        ans = input("1 — встановити, 2 — повернути англійську, Enter — вийти: ").strip()
+    except EOFError:
+        return "install"                  # запуск скриптом, без консолі: як було раніше
+    except KeyboardInterrupt:
+        return None                       # Ctrl+C — це «вийти», а не «став»
+    return {"1": "install", "2": "restore"}.get(ans)
+
+
 def ask_game_dir() -> Path | None:
     """Гру не знайдено: показуємо діалог, а якщо він недоступний — просимо ввести шлях."""
-    print("Не знайшов гру автоматично. Зараз відкриється вікно — вкажіть теку гри.")
+    if has_folder_dialog():
+        print("Не знайшов гру автоматично. Зараз відкриється вікно — вкажіть теку гри.")
+    else:
+        print("Не знайшов гру автоматично. Вкажіть теку, де лежить wind3d11data.")
     got = _as_game_dir(pick_folder("Оберіть теку гри STEINS;GATE RE:BOOT"))
     if got:
         print(f"Гра: {got}")
@@ -193,7 +318,16 @@ def find_game(explicit: str | None) -> Path:
     raise SystemExit(
         "Теку гри не вказано.\n"
         "Можна й одразу ключем — шлях до теки, де лежить wind3d11data, наприклад:\n"
-        '  SGRE-UA-Setup.exe --game "D:\\SteamLibrary\\steamapps\\common\\SGRE"')
+        f"  {example_command()}")
+
+
+def example_command() -> str:
+    """Підказка з ключем --game під ту систему, де людина зараз, а не під Windows завжди."""
+    if sys.platform == "win32":
+        return 'SGRE-UA-Setup.exe --game "D:\\SteamLibrary\\steamapps\\common\\SGRE"'
+    if sys.platform == "darwin":
+        return './SGRE-UA-Setup --game "~/Library/Application Support/Steam/steamapps/common/SGRE"'
+    return './SGRE-UA-Setup --game ~/.local/share/Steam/steamapps/common/SGRE'
 
 
 def load_py(path: Path):
@@ -210,11 +344,32 @@ STATE_FILE = "patch_state.json"
 STEMS = ("scenario", "config", "font", "motion")
 
 
-def game_revision(data_dir: Path) -> str | None:
-    """Ревізія гри з config-архіву. Читаємо з _orig, якщо він є: там незаймана копія."""
+def game_revision(data_dir: Path, prefer_orig: bool = True) -> str | None:
+    """Ревізія гри з config-архіву.
+
+    prefer_orig=True — з незайманої копії в _orig (те, під що зібрано переклад).
+    prefer_orig=False — з того, що зараз лежить у грі: лише так видно оновлення Steam.
+    Патч поля revision не чіпає, тож пропатчений config рапортує ту саму ревізію.
+    """
     try:
-        return str(Psb(Archive(data_dir, "config").get("revision")).root.get("revision") or "") or None
+        arc = Archive(data_dir, "config", prefer_orig=prefer_orig)
+        return str(Psb(arc.get("revision")).root.get("revision") or "") or None
     except Exception:  # noqa: BLE001
+        return None
+
+
+def steam_buildid(game_dir: Path) -> str | None:
+    """buildid з appmanifest Steam — він змінюється при КОЖНОМУ оновленні депо.
+
+    Надійніший за підписи файлів: підпис не відрізняє «Steam оновив гру» від «попереднє
+    встановлення перервали». Для копій не зі Steam маніфесту немає — тоді повертаємо None,
+    і викликач мусить трактувати це як «не знаю», а не як «оновили».
+    """
+    try:
+        manifest = game_dir.parent.parent / f"appmanifest_{APPID}.acf"
+        m = re.search(r'"buildid"\s+"(\d+)"', manifest.read_text(encoding="utf-8", errors="ignore"))
+        return m.group(1) if m else None
+    except OSError:
         return None
 
 
@@ -247,14 +402,29 @@ def load_state(data_dir: Path) -> dict:
         return {}
 
 
-def save_state(data_dir: Path):
-    """Запам'ятати, що ми поклали в гру й що лежить у резерві."""
+def save_state(data_dir: Path, game_dir: Path | None = None, stems: tuple[str, ...] = STEMS):
+    """Запам'ятати, що ми поклали в гру й що лежить у резерві.
+
+    Викликається після КОЖНОЇ частини, а не раз наприкінці: встановлення триває хвилини,
+    і якщо його перервати, стан має описувати те, що вже реально лежить на диску. Інакше
+    наступний запуск побачить «файл не мій і не оригінал» і сплутає це з оновленням гри.
+    """
     import json
     orig = data_dir / "_orig"
     if not orig.is_dir():
         return
-    state = {"built_for": BUILT_FOR, "orig": {}, "installed": {}}
-    for stem in STEMS:
+    state = load_state(data_dir)
+    state["built_for"] = BUILT_FOR
+    if game_dir is not None:
+        bid = steam_buildid(game_dir)
+        if bid:
+            state["buildid"] = bid
+    rev = game_revision(data_dir, prefer_orig=True)
+    if rev:
+        state["revision"] = rev
+    for key in ("orig", "installed"):
+        state.setdefault(key, {})
+    for stem in stems:
         f = f"{stem}_body.bin"
         if (orig / f).exists():
             state["orig"][stem] = signature(orig / f)
@@ -263,16 +433,34 @@ def save_state(data_dir: Path):
     _state_path(data_dir).write_text(json.dumps(state, indent=1), encoding="utf-8")
 
 
-def refresh_backups(data_dir: Path) -> list[str]:
-    """Якщо Steam оновив гру, резервні копії застаріли — і патч поверне старий вміст.
+def game_was_updated(data_dir: Path, game_dir: Path, state: dict) -> bool | None:
+    """Чи оновлював Steam гру після нашого встановлення? None — «не знаю».
 
-    Тому перед роботою звіряємо: якщо теперішній файл гри не збігається ні з тим, що ми
-    самі записали минулого разу, ні з резервною копією, — гру оновили. Тоді стару копію
-    відкладаємо вбік і робимо нову з поточного файлу.
+    Підпис файлу для цього не годиться: він однаково не збігається і після оновлення гри,
+    і після перерваного встановлення, а переплутати їх — значить записати пропатчений файл
+    у резерв замість оригіналу й назавжди втратити можливість відкату.
+    """
+    bid_now, bid_was = steam_buildid(game_dir), state.get("buildid")
+    if bid_now and bid_was:
+        return bid_now != bid_was
+    # копія не зі Steam: питаємо саму гру, обходячи _orig
+    rev_now, rev_was = game_revision(data_dir, prefer_orig=False), state.get("revision")
+    if rev_now and rev_was:
+        return rev_now != rev_was
+    return None
+
+
+def refresh_backups(data_dir: Path, game_dir: Path) -> list[str]:
+    """Оновити резервні копії, якщо Steam оновив гру: інакше відкат поверне старий вміст.
+
+    Робимо це ЛИШЕ маючи доказ оновлення. «Не знаю» означає «не чіпати»: краще застарілий
+    резерв, який можна перезробити, ніж затертий оригінал, якого вже нізвідки взяти.
     """
     orig = data_dir / "_orig"
     state = load_state(data_dir)
     if not orig.is_dir() or not state:
+        return []
+    if game_was_updated(data_dir, game_dir, state) is not True:
         return []
     updated = []
     for stem in STEMS:
@@ -281,19 +469,24 @@ def refresh_backups(data_dir: Path) -> list[str]:
         if not cur.exists() or not (orig / f).exists():
             continue
         sig = signature(cur)
-        if sig == state.get("installed", {}).get(stem):
-            continue                       # це наш власний файл — усе гаразд
         if sig == state.get("orig", {}).get(stem):
-            continue                       # ще не патчений оригінал — теж гаразд
-        stamp = time.strftime("%Y%m%d")
-        for suffix in (f"{stem}_body.bin", f"{stem}_info.psb.m"):
-            old = orig / suffix
+            continue                       # резерв уже відповідає новій версії
+        pair = [(orig / f"{stem}_body.bin", data_dir / f"{stem}_body.bin"),
+                (orig / f"{stem}_info.psb.m", data_dir / f"{stem}_info.psb.m")]
+        if not all(src.exists() for _, src in pair):
+            continue                       # пару чіпаємо тільки цілком
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        for old, src in pair:
             if old.exists():
-                # os.replace, а не rename: інакше повторний запуск того самого дня
-                # спіткнеться об уже наявне ім'я
-                os.replace(old, orig / f"{suffix}.before{stamp}")
-            shutil.copy2(data_dir / suffix, orig / suffix)
-        # одразу оновлюємо стан, щоб наступний запуск не порахував гру оновленою вдруге
+                # ніколи не перезаписуємо вже відкладену копію: під нею може лежати
+                # єдиний уцілілий оригінал
+                spare = orig / f"{old.name}.before{stamp}"
+                i = 0
+                while spare.exists():
+                    i += 1
+                    spare = orig / f"{old.name}.before{stamp}_{i}"
+                old.rename(spare)
+            shutil.copy2(src, old)
         state.setdefault("orig", {})[stem] = signature(orig / f"{stem}_body.bin")
         updated.append(stem)
     if updated:
@@ -524,7 +717,7 @@ def patch_font(data_dir: Path, tmp: Path):
 def patch_ui(data_dir: Path):
     import ui_tex
     ui_tex.DATA = data_dir
-    ui_tex.CACHE = Path(os.environ.get("TEMP", ".")) / "sgre_ua_motion"
+    ui_tex.CACHE = Path(tempfile.gettempdir()) / "sgre_ua_motion"
     ui_tex.CACHE.mkdir(parents=True, exist_ok=True)
 
     sys.path.insert(0, str(DATA))          # таблиця написів лежить у data/ — має бути видима до імпорту
@@ -558,9 +751,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--game", help="тека гри (та, де лежить wind3d11data)")
     ap.add_argument("--restore", action="store_true", help="повернути англійську")
+    ap.add_argument("--install", action="store_true", help="ставити без запитання")
     ap.add_argument("--only", nargs="*", choices=["scenario", "config", "font", "ui"],
                     help="ставити лише вибрані частини")
     a = ap.parse_args()
+
+    # без явних ключів не вгадуємо намір, а питаємо: інакше про відкат знає лише той,
+    # хто дочитав README до ключа --restore
+    if not (a.restore or a.install or a.only):
+        action = ask_action()
+        if action is None:
+            return 0
+        a.restore = action == "restore"
 
     game = find_game(a.game)
     data_dir = game / "wind3d11data"
@@ -588,32 +790,38 @@ def main() -> int:
     elif rev:
         log(f"  ревізія {rev} — та сама, під яку зібрано переклад")
 
-    for stem in refresh_backups(data_dir):
+    for stem in refresh_backups(data_dir, game):
         log(f"  ! Гру оновлено: {stem} відрізняється від нашої резервної копії.")
-        log(f"    Стару копію перейменовано, нову зроблено з поточного файлу.")
+        log(f"    Стару копію відкладено вбік, нову зроблено з поточного файлу.")
 
     parts = a.only or ["scenario", "config", "font", "ui"]
     t0 = time.time()
-    tmp = Path(os.environ.get("TEMP", ".")) / "sgre_ua_build"
+    tmp = Path(tempfile.gettempdir()) / "sgre_ua_build"
     tmp.mkdir(parents=True, exist_ok=True)
 
+    # стан пишемо після кожної частини: перерване встановлення має лишати правдивий запис
+    # про те, що вже на диску, інакше наступний запуск сплутає це з оновленням гри
     if "font" in parts:
         log("Шрифт…")
         patch_font(data_dir, tmp)
+        save_state(data_dir, game, ("font",))
     if "scenario" in parts:
         log("Сценарій…")
         patch_scenario(data_dir)
+        save_state(data_dir, game, ("scenario",))
     if "config" in parts:
         log("Інтерфейс, TIPS і пошта…")
         patch_config(data_dir, with_font="font" in parts)
+        save_state(data_dir, game, ("config",))
     if "ui" in parts:
         log("Написи на кнопках і плашках (найдовша частина, кілька хвилин)…")
         patch_ui(data_dir)
+        save_state(data_dir, game, ("motion",))
 
-    save_state(data_dir)
+    save_state(data_dir, game)
     log(f"\nГотово за {time.time() - t0:.0f} с.")
     log("У грі оберіть мову English — текст буде український.")
-    log("Відкат: запустіть інсталятор із ключем --restore")
+    log("Відкат: запустіть інсталятор ще раз і оберіть «Повернути англійську».")
     return 0
 
 

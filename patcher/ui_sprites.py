@@ -17,7 +17,8 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
+# сусідні модулі лежать поруч: у робочому репозиторії це tools/, у публічному — patcher/
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ui_tex import Motion, DATA  # noqa: E402
 from psb import PsbFloat, PsbDouble, UArr  # noqa: E402
 import struct
@@ -172,10 +173,11 @@ def render_sprite(orig: Image.Image, spec: dict) -> Image.Image:
     w, h = orig.size
     if spec.get("inset"):
         return render_inset(orig, spec)
-    m = measure(orig, spec.get("bg"))
     if spec.get("transparent"):
         # напис без плашки, але щільний (білий текст із тонким контуром) — вимірювалка вважає його плашкою
         m = measure(orig, None, force_transparent=True)
+    else:
+        m = measure(orig, spec.get("bg"))
     text = spec["text"]
     font_key = spec.get("font", "oswald")
     pad = spec.get("pad")
@@ -527,7 +529,6 @@ def render_guide_light(orig: Image.Image, spec: dict) -> Image.Image:
     return out
 
 
-_RECT_CACHE: dict = {}
 STATS: list = []   # статистика останнього render_sprite (кегль/висота капітелей) — для звіту про стиснення
 
 
@@ -536,15 +537,17 @@ def rect_mesh(m: Motion, ic: dict, w: int, h: int, origin: tuple | None = None):
     origin=(ox, oy) — зберегти точку привʼязки старої іконки (anchor left/top: спрайт росте праворуч/униз,
     лівий/верхній край лишається на місці); інакше привʼязка в центрі."""
     psb = m.psb
-    key = id(psb)
-    if key not in _RECT_CACHE:
-        verts = psb.add_extra(struct.pack("<8f", 0, 0, 1, 0, 0, 1, 1, 1))
-        strip = psb.add_extra(struct.pack("<4I", 0, 1, 2, 3))
-        hull = psb.add_extra(struct.pack("<4I", 0, 1, 3, 2))
-        hidx = psb.add_extra(struct.pack("<4I", 0, 1, 2, 3))
-        empty = psb.add_extra(b"")
-        _RECT_CACHE[key] = (verts, strip, hull, hidx, empty)
-    verts, strip, hull, hidx, empty = _RECT_CACHE[key]
+    # кеш тримаємо на самому PSB, а не в словнику за id(): id — це адреса, і після звільнення
+    # попереднього моушена новий об'єкт може дістати ту саму адресу разом із чужими індексами
+    cached = getattr(psb, "_rect_cache", None)
+    if cached is None:
+        cached = (psb.add_extra(struct.pack("<8f", 0, 0, 1, 0, 0, 1, 1, 1)),
+                  psb.add_extra(struct.pack("<4I", 0, 1, 2, 3)),
+                  psb.add_extra(struct.pack("<4I", 0, 1, 3, 2)),
+                  psb.add_extra(struct.pack("<4I", 0, 1, 2, 3)),
+                  psb.add_extra(b""))
+        psb._rect_cache = cached
+    verts, strip, hull, hidx, empty = cached
     mesh = ic.get("mesh")
     if not isinstance(mesh, dict):
         return
@@ -722,7 +725,13 @@ def build_motion(name: str, preview_dir: Path | None = None) -> Motion:
             else:
                 new = render_sprite(orig, spec)
             atlas.paste(new, (l, t))
-            if spec.get("rect_mesh", spec.get("stretch") or measure(orig)["transparent"]):
+            # обережно з .get(ключ, типове): типове обчислюється завжди, навіть коли ключ є,
+            # тож раніше повний попіксельний measure() робився ще раз на кожен спрайт
+            if "rect_mesh" in spec:
+                need_mesh = spec["rect_mesh"]
+            else:
+                need_mesh = spec.get("stretch") or measure(orig)["transparent"]
+            if need_mesh:
                 rect_mesh(m, ic, w, h)
             _stat_line(name, src, iid, n0, f"{w}x{h}")
             if preview_dir:

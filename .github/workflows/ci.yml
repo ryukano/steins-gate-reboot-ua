@@ -1,0 +1,79 @@
+name: CI
+
+env:
+  # the Windows runner's console defaults to cp1252, which cannot encode Ukrainian output
+  PYTHONIOENCODING: utf-8
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    # Linux is not a formality here: it is the first place the non-Windows branch of the
+    # code actually runs — no winreg, no ctypes dialogs
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pillow fonttools zstandard
+      - name: Run tests that need no game files
+        run: python tests/test_patcher.py
+      - name: Import every module
+        run: |
+          python -c "import sys; sys.path[:0]=['patcher','data']; import patch, m2archive, m2crypt, psb, ui_tex, ui_sprites, build_font; print('all modules imported')"
+      - name: Show help
+        run: python -m patcher.patch --help
+
+  build-linux:
+    # the Steam Deck is x86-64, so ubuntu-latest gives the right binary
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pyinstaller pillow fonttools zstandard texture2ddecoder
+      - name: Build
+        run: python build_exe.py
+      - name: Smoke-test the binary
+        run: |
+          ./dist/SGRE-UA-Setup --help
+          echo "---"
+          # no game here: expect a clean message, not a traceback
+          ./dist/SGRE-UA-Setup --install 2>&1 | tail -5 || true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SGRE-UA-Setup-linux
+          path: dist/SGRE-UA-Setup
+          retention-days: 30
+
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install pyinstaller pillow fonttools zstandard texture2ddecoder
+      - name: Build
+        run: python build_exe.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SGRE-UA-Setup-windows
+          path: dist/SGRE-UA-Setup.exe
+          retention-days: 30

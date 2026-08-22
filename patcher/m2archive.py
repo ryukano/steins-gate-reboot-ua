@@ -15,16 +15,23 @@ import shutil, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "tools"))
+# сусідні модулі лежать поруч: у робочому репозиторії це tools/, у публічному — patcher/
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from m2crypt import unshell, enshell, DEFAULT_KEY  # noqa: E402
 from psb import Psb  # noqa: E402
 
 
 class Archive:
-    def __init__(self, data_dir: Path, stem: str, key: str = DEFAULT_KEY):
+    def __init__(self, data_dir: Path, stem: str, key: str = DEFAULT_KEY, prefer_orig: bool = True):
+        """prefer_orig=False читає те, що зараз лежить у грі, а не резервну копію.
+
+        Для патчення завжди беремо незайманий оригінал із _orig. Але щоб дізнатися, чи Steam
+        оновив гру, треба подивитися саме на поточний файл — інакше побачимо стару копію
+        й ніколи не помітимо оновлення.
+        """
         self.data_dir = Path(data_dir); self.stem = stem; self.key = key
         orig = self.data_dir / "_orig"
-        src = orig if (orig / f"{stem}_body.bin").exists() else self.data_dir
+        src = orig if prefer_orig and (orig / f"{stem}_body.bin").exists() else self.data_dir
         self.info_name = f"{stem}_info.psb.m"
         self.info = Psb(unshell((src / self.info_name).read_bytes(), key, self.info_name))
         self.body = (src / f"{stem}_body.bin").read_bytes()
@@ -70,11 +77,12 @@ class Archive:
                 body.append(0)
             new_fi[name] = [len(body), len(blob)]
             body += blob
-        # оновити маніфест (нові імена додаються в кінець словника; ключ у trie має існувати — для file_info це
-        # значення-рядки, а не ключі-імена, тому нові записи ок)
+        # оновити маніфест: імена записів — це ключі file_info, тож вони йдуть у trie імен,
+        # але Psb.build() перебудовує trie сам, коли бачить нові ключі
         fi.clear(); fi.update(new_fi)
         info_raw = self.info.build()
-        return enshell(info_raw, b"mzs\0", self.key, self.info_name), bytes(body)
+        # body віддаємо як є: bytes() робив ще одну повну копію — для motion це зайвий гігабайт
+        return enshell(info_raw, b"mzs\0", self.key, self.info_name), body
 
     def write(self, out_dir: Path):
         out_dir = Path(out_dir); out_dir.mkdir(parents=True, exist_ok=True)
