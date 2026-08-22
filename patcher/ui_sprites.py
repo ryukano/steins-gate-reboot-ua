@@ -239,6 +239,9 @@ def render_inset(orig: Image.Image, spec: dict) -> Image.Image:
     текстом (глітч-обвідка кнопки DEFAULT)."""
     w, h = orig.size
     l, t, r, b = spec["inset"]
+    if r is None:
+        # права межа не задана — декор по краях симетричний (шеврони банера), тож дзеркалимо лівий відступ
+        r = w - l
     bg = spec.get("bg") or (40, 40, 40)
     fg = tuple(spec.get("fg") or (192, 192, 188))
     text = spec["text"].upper() if spec.get("upper", True) else spec["text"]
