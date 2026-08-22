@@ -83,6 +83,86 @@ def steam_libraries(root: Path) -> list[Path]:
     return libs
 
 
+def _as_game_dir(p: Path | None, max_depth: int = 6, max_dirs: int = 8000) -> Path | None:
+    """Тека гри — та, де лежить wind3d11data.
+
+    Людина, обираючи теку вручну, майже завжди тицяє вище, ніж треба: не в …\\common\\SGRE,
+    а в D:\\GAMES або в корінь бібліотеки Steam. Тому спускаємося вглиб, але з двома запобіжниками
+    (глибина й кількість тек), щоб вибір C:\\ не перетворився на сканування диска.
+    """
+    if p is None or not p.is_dir():
+        return None
+    if (p / "wind3d11data").is_dir():
+        return p
+    seen, level = 0, [p]
+    for _ in range(max_depth):
+        nxt = []
+        for d in level:
+            try:
+                children = [c for c in d.iterdir() if c.is_dir()]
+            except OSError:
+                continue
+            for c in children:
+                if c.name.lower() == "wind3d11data":
+                    return d
+                seen += 1
+                if seen > max_dirs:
+                    return None
+                nxt.append(c)
+        if not nxt:
+            return None
+        level = nxt
+    return None
+
+
+def pick_folder(title: str) -> Path | None:
+    """Рідний віндовий діалог вибору теки: самий shell32, нічого зайвого в збірку не тягне."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class BROWSEINFO(ctypes.Structure):
+            _fields_ = [("hwndOwner", wintypes.HWND), ("pidlRoot", ctypes.c_void_p),
+                        ("pszDisplayName", wintypes.LPWSTR), ("lpszTitle", wintypes.LPCWSTR),
+                        ("ulFlags", wintypes.UINT), ("lpfn", ctypes.c_void_p),
+                        ("lParam", wintypes.LPARAM), ("iImage", ctypes.c_int)]
+
+        shell32, ole32 = ctypes.windll.shell32, ctypes.windll.ole32
+        shell32.SHBrowseForFolderW.restype = ctypes.c_void_p      # на 64 біт інакше вріже вказівник
+        shell32.SHGetPathFromIDListW.argtypes = [ctypes.c_void_p, wintypes.LPWSTR]
+        ole32.OleInitialize(None)     # саме Ole, а не Co: інакше сучасний діалог мовчки не відкриється
+        bi = BROWSEINFO()
+        name_buf = ctypes.create_unicode_buffer(260)   # тримаємо посилання: Windows пише сюди назву
+        bi.pszDisplayName = ctypes.cast(name_buf, wintypes.LPWSTR)
+        bi.lpszTitle = title
+        bi.ulFlags = 0x0001 | 0x0040      # лише теки файлової системи + сучасний вигляд діалогу
+        pidl = shell32.SHBrowseForFolderW(ctypes.byref(bi))
+        if not pidl:
+            return None
+        buf = ctypes.create_unicode_buffer(1024)
+        ok = shell32.SHGetPathFromIDListW(pidl, buf)
+        ole32.CoTaskMemFree(pidl)
+        return Path(buf.value) if ok and buf.value else None
+    except Exception:  # noqa: BLE001 — діалог не критичний, нижче є запасний шлях
+        return None
+
+
+def ask_game_dir() -> Path | None:
+    """Гру не знайдено: показуємо діалог, а якщо він недоступний — просимо ввести шлях."""
+    print("Не знайшов гру автоматично. Зараз відкриється вікно — вкажіть теку гри.")
+    got = _as_game_dir(pick_folder("Оберіть теку гри STEINS;GATE RE:BOOT"))
+    if got:
+        print(f"Гра: {got}")
+        return got
+    try:
+        typed = input("Шлях до теки гри (Enter — вийти): ").strip().strip('"')
+    except (EOFError, KeyboardInterrupt):
+        return None
+    return _as_game_dir(Path(typed)) if typed else None
+
+
 def find_game(explicit: str | None) -> Path:
     if explicit:
         p = Path(explicit)
@@ -107,10 +187,13 @@ def find_game(explicit: str | None) -> Path:
             if (apps / "common" / "SGRE" / "wind3d11data").is_dir():
                 return apps / "common" / "SGRE"
 
+    got = ask_game_dir()
+    if got:
+        return got
     raise SystemExit(
-        "Не знайшов гру автоматично.\n"
-        "Запустіть із ключем --game і шляхом до теки, де лежить wind3d11data, наприклад:\n"
-        '  python -m patcher.patch --game "D:\\SteamLibrary\\steamapps\\common\\SGRE"')
+        "Теку гри не вказано.\n"
+        "Можна й одразу ключем — шлях до теки, де лежить wind3d11data, наприклад:\n"
+        '  SGRE-UA-Setup.exe --game "D:\\SteamLibrary\\steamapps\\common\\SGRE"')
 
 
 def load_py(path: Path):
