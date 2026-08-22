@@ -502,7 +502,7 @@ SPRITES = {
             "0183": {"text": "4°C", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
             "0184": {"text": "Окабе Рінтаро через 15 років", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
             "0185": {"text": "Ведучий", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
-            "0186": {"text": "Репортерка", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
+            "0186": {"text": "Репортер", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
             "0187": {"text": "Професор", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
             "0188": {"text": "Мисливець за ракурсом А", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
             "0189": {"text": "Мисливець за ракурсом Б", "font": "garamond", "upper": False, "cap_h": 28, "relocate": True},
