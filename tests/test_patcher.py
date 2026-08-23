@@ -178,6 +178,30 @@ def test_buildid_parsing(tmp: Path):
 
 # ---------------------------------------------------------------- запуск
 
+def test_ui_pack_manifest():
+    """Інваріанти пакунка графіки: биту збірку краще зловити в CI, ніж у гравця.
+
+    Небезпечний випадок — маніфест, зібраний із --no-check: звірки не було, і запис
+    без "sheet" чи з непроставленими координатами patch_ui мовчки пропустить.
+    """
+    print("маніфест пакунка графіки")
+    man_path = ROOT / "data" / "ui_pack.json"
+    if not man_path.exists():
+        check("є ui_pack.json", False, "файл відсутній")
+        return
+    man = json.loads(man_path.read_text(encoding="utf-8"))
+    sheets = man.get("sheets", [])
+    check("аркуші перелічені й існують",
+          bool(sheets) and all((ROOT / "data" / f).exists() for f in sheets))
+    bad_sheet = [n for n, e in man["motions"].items()
+                 if not isinstance(e.get("sheet"), int) or not 0 <= e["sheet"] < len(sheets)]
+    check("кожен моушен знає свій аркуш", not bad_sheet, ", ".join(bad_sheet[:5]))
+    bad_paste = [n for n, e in man["motions"].items()
+                 for rec in e.get("paste", []) if any(v is None for v in rec[1:])]
+    check("у paste нема непроставлених координат", not bad_paste, ", ".join(bad_paste[:5]))
+
+
+
 def main() -> int:
     base = Path(tempfile.mkdtemp(prefix="sgre_test_"))
     home = base / "home"
@@ -196,6 +220,7 @@ def main() -> int:
         test_backups_refresh_on_real_update(base / "s2")
         test_backups_untouched_without_proof(base / "s3")
         test_buildid_parsing(base / "s4")
+        test_ui_pack_manifest()
     finally:
         if old_home is not None:
             import os

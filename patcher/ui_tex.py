@@ -4,27 +4,26 @@
     from ui_tex import Motion
     m = Motion("title")                       # бере work/reboot_motion/title.psb (або з архіву)
     img = m.atlas("tex#000")                  # PIL RGBA
-    m.set_atlas("tex#000", img, fmt="RGBA8")  # замінити (fmt: RGBA8 | BC7 через texconv)
+    m.set_atlas("tex#000", img, fmt="RGBA8")  # замінити
     m.save_psb(path) / m.install()            # записати у motion-архів гри
 
     python ui_tex.py dump title               # → work/ui/title/tex000.png + sheet.png + icons.json
     python ui_tex.py test-rgba8 title         # тест: червона плашка на NEW GAME, RGBA8, у гру
 """
 from __future__ import annotations
-import argparse, json, sys, shutil, subprocess, tempfile
+import argparse, json, struct, sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 # сусідні модулі лежать поруч: у робочому репозиторії це tools/, у публічному — patcher/
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from psb import Psb, PsbRes, UArr  # noqa: E402
+from psb import Psb, PsbFloat  # noqa: E402
 from m2archive import Archive  # noqa: E402
 
 GAME = Path(r"D:\GAMES\Steam\steamapps\common\SGRE")
 DATA = GAME / "wind3d11data"
 CACHE = ROOT / "work" / "reboot_motion"
-TEXCONV = ROOT / "sources" / "tools" / "texconv.exe"
 
 
 def bc7_decode(data: bytes, w: int, h: int) -> Image.Image:
@@ -32,24 +31,70 @@ def bc7_decode(data: bytes, w: int, h: int) -> Image.Image:
     return Image.frombytes("RGBA", (w, h), t2d.decode_bc7(data, w, h), "raw", "BGRA")
 
 
-def bc7_encode(img: Image.Image) -> bytes:
-    """BC7 через DirectXTex texconv (sources/tools/texconv.exe). Повертає сирі блоки без DDS-заголовка."""
-    if not TEXCONV.exists():
-        raise FileNotFoundError("нема sources/tools/texconv.exe — завантаж DirectXTex texconv або використовуй fmt=RGBA8")
-    with tempfile.TemporaryDirectory() as td:
-        src = Path(td) / "in.png"; img.save(src)
-        subprocess.run([str(TEXCONV), "-f", "BC7_UNORM", "-m", "1", "-y", "-o", td, str(src)], check=True, capture_output=True)
-        dds = (Path(td) / "in.dds").read_bytes()
-    # DDS: 4 magic + 124 header (+ 20 DX10 header для BC7)
-    off = 4 + 124
-    if dds[84:88] == b"DX10":
-        off += 20
-    return dds[off:]
+def rect_mesh(m, ic: dict, w: int, h: int, origin: tuple | None = None) -> None:
+    """Замінити адаптивну сітку іконки прямокутником на 4 вершини.
+
+    Оригінальна сітка обтягує англійський напис за контуром; якщо її лишити, довший
+    український обріжеться по чужій формі. origin=(ox, oy) — зберегти точку привʼязки
+    (спрайт росте праворуч/униз, лівий верхній кут на місці); інакше привʼязка в центрі.
+    """
+    psb = m.psb
+    m.mesh_calls.append((id(ic), origin))
+    # кеш на самому PSB, а не в словнику за id(): id — це адреса, і звільнений обʼєкт
+    # може віддати її наступному разом із чужими індексами
+    cached = getattr(psb, "_rect_cache", None)
+    if cached is None:
+        cached = (psb.add_extra(struct.pack("<8f", 0, 0, 1, 0, 0, 1, 1, 1)),
+                  psb.add_extra(struct.pack("<4I", 0, 1, 2, 3)),
+                  psb.add_extra(struct.pack("<4I", 0, 1, 3, 2)),
+                  psb.add_extra(struct.pack("<4I", 0, 1, 2, 3)),
+                  psb.add_extra(b""))
+        psb._rect_cache = cached
+    verts, strip, hull, hidx, empty = cached
+    mesh = ic.get("mesh")
+    if not isinstance(mesh, dict):
+        return
+    pw, ph = w + 2, h + 2
+    ox, oy = origin if origin else (w // 2, h // 2)
+    tx, ty = (-(ox + 1), -(oy + 1)) if origin else (-pw / 2, -ph / 2)
+    mesh["vertices"] = verts
+    mesh["tristrip"] = strip
+    mesh["convexHulls"] = [hull]
+    mesh["concaveHulls"] = [hull]
+    mesh["convexIndices"] = hidx
+    mesh["concaveIndices"] = hidx
+    mesh["concaveConvexDiffIndices"] = empty
+    mesh["meshMatrix"] = psb.add_extra(struct.pack("<6f", pw, 0, 0, ph, tx, ty))
+    mar = mesh.get("minAreaRect")
+    if isinstance(mar, dict):
+        mar["cx"] = PsbFloat(pw / 2)
+        mar["cy"] = PsbFloat(ph / 2)
+        mar["width"] = PsbFloat(pw)
+        mar["height"] = PsbFloat(ph)
+        mar["angle"] = PsbFloat(0.0)
+    ic["originX"] = int(ox)
+    ic["originY"] = int(oy)
 
 
 class Motion:
-    def __init__(self, name: str, key: str | None = None):
+    def __init__(self, name: str, key: str | None = None, archive: "Archive | None" = None):
+        """archive — уже відкритий архів motion. Без нього кожен моушен відкриває свій,
+        а це щоразу читання цілого motion_body.bin (0.94 ГБ): на тридцять моушенів
+        інсталятора виходило тридцять гігабайтів вводу-виводу.
+
+        Кеш у CACHE ключується лише іменем, тож із ним архів не звіряється. Це доречно
+        для тутешніх інструментів (гра одна й та сама), але не для інсталятора: там кеш
+        пережив би оновлення гри й підсунув PSB старої ревізії. Тому коли архів передано —
+        читаємо з нього і кешу не торкаємось узагалі.
+        """
         self.name = name
+        if archive is not None:
+            raw = archive.get(name)
+            self.psb = Psb(raw)
+            self.root = self.psb.root
+            self.new_chunks = {}
+            self.mesh_calls = []
+            return
         p = CACHE / f"{name}.psb"
         if p.exists():
             raw = p.read_bytes()
@@ -59,6 +104,7 @@ class Motion:
         self.psb = Psb(raw)
         self.root = self.psb.root
         self.new_chunks: dict[int, bytes] = {}
+        self.mesh_calls: list[tuple[int, tuple | None]] = []   # порядок правок сітки — див. rect_mesh
 
     def textures(self) -> dict:
         return {k: v["texture"] for k, v in self.root["source"].items() if isinstance(v, dict) and "texture" in v}
@@ -86,14 +132,15 @@ class Motion:
             # атлас збільшено (релокація спрайтів): оновлюємо розміри; truncated_* — фактично використана площа
             tex["width"], tex["height"] = img.size
             tex["truncated_width"] = max(int(tex.get("truncated_width", w)), min(w, img.size[0]))
+            # -2 — це гутер, який лишає внизу смуга релокації в ui_sprites.build_motion;
+            # якщо пакування смуги колись зміниться, це число має змінитися разом із ним
             tex["truncated_height"] = img.size[1] - 2
         img = img.convert("RGBA")
-        if fmt == "RGBA8":
-            data = img.tobytes("raw", "BGRA")
-        elif fmt == "BC7":
-            data = bc7_encode(img)
-        else:
-            raise ValueError(fmt)
+        # пишемо тільки RGBA8. Читати гра вміє і BC7 (див. bc7_decode), але кодувати
+        # його нам нема чим і нема навіщо: місця в архіві вистачає
+        if fmt != "RGBA8":
+            raise ValueError(f"писати вміємо лише RGBA8, не {fmt}")
+        data = img.tobytes("raw", "BGRA")
         tex["type"] = fmt
         self.new_chunks[tex["pixel"].index] = data
 

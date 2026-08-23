@@ -38,6 +38,7 @@ class Archive:
         self.suffix = (self.info.root.get("expire_suffix_list") or [""])[0]
         self.entries: dict[str, bytes] = {}      # name → сирий (розшифрований) вміст, лише змінені/додані
         self.shell: dict[str, bytes | None] = {}  # name → магія оболонки для нових записів
+        self.packed: set[str] = set()             # записи, які в entries лежать УЖЕ запакованими
 
     def seed(self, name: str) -> str:
         return name if name.endswith(".m") else name + self.suffix
@@ -51,6 +52,8 @@ class Archive:
 
     def get(self, name: str) -> bytes:
         if name in self.entries:
+            if name in self.packed:
+                return unshell(self.entries[name], self.key, self.seed(name))
             return self.entries[name]
         blob = self.raw_blob(name)
         if blob[:4] in (b"mzs\0", b"mdf\0"):
@@ -64,13 +67,32 @@ class Archive:
         else:
             self.shell[name] = shell
 
+    def put_shelled(self, name: str, data: bytes):
+        """Як put, але пакує одразу, і в памʼяті лежить готовий стиснений blob.
+
+        Для motion це різниця між ≈2.4 ГБ сирих RGBA8-атласів і ≈180 МБ mzs: інсталятор
+        кладе 36 моушенів поспіль, і тримати їх сирими до build() означало класти патч
+        на коліна машинам із 8 ГБ памʼяті. Сумарний час не змінюється — стиснення
+        однаково відбулося б у build(), просто пізніше й усе разом.
+        """
+        sh = b"mzs\0"
+        if name in self.info.root["file_info"]:
+            head = self.raw_blob(name)[:4]
+            sh = head if head in (b"mzs\0", b"mdf\0") else None
+        self.entries[name] = enshell(data, sh, self.key, self.seed(name)) if sh else data
+        self.shell[name] = sh
+        self.packed.add(name)
+
     def build(self) -> tuple[bytes, bytes]:
         fi = self.info.root["file_info"]
         body = bytearray(); new_fi = {}
         for name in list(fi) + [n for n in self.entries if n not in fi]:
             if name in self.entries:
                 sh = self.shell.get(name)
-                blob = enshell(self.entries[name], sh, self.key, self.seed(name)) if sh else self.entries[name]
+                if name in self.packed or not sh:
+                    blob = self.entries[name]
+                else:
+                    blob = enshell(self.entries[name], sh, self.key, self.seed(name))
             else:
                 blob = self.raw_blob(name)
             while len(body) % 16:

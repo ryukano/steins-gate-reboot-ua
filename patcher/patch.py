@@ -717,32 +717,31 @@ def patch_font(data_dir: Path, tmp: Path):
 def patch_ui(data_dir: Path):
     import ui_tex
     ui_tex.DATA = data_dir
-    ui_tex.CACHE = Path(tempfile.gettempdir()) / "sgre_ua_motion"
-    ui_tex.CACHE.mkdir(parents=True, exist_ok=True)
 
-    sys.path.insert(0, str(DATA))          # таблиця написів лежить у data/ — має бути видима до імпорту
-    import ui_sprites
-    ui_sprites.FONTS = {
-        "oswald": FONTS / "Oswald-Bold.ttf",
-        "oswald-semi": FONTS / "Oswald-SemiBold.ttf",
-        "oswald-med": FONTS / "Oswald-Medium.ttf",
-        "sans": FONTS / "SourceSans3-Semibold.ttf",
-        "sans-bold": FONTS / "SourceSans3-Bold.ttf",
-        "sans-reg": FONTS / "SourceSans3-Regular.ttf",
-        "sans-black": FONTS / "SourceSans3-Black.ttf",
-        "garamond": FONTS / "EBGaramond-Medium.ttf",
-        "garamond-semi": FONTS / "EBGaramond-SemiBold.ttf",
-    }
-    import ui_sprites_table as T
-    ui_sprites.T = T
+    import json
+    from PIL import Image
+    import ui_apply
+
+    # графіку намальовано заздалегідь: сюди приїхав аркуш спрайтів і маніфест, куди їх класти.
+    # Тут лишається накладання — тож гравець отримує рівно те, що ми бачили й перевірили.
+    man = json.loads((DATA / "ui_pack.json").read_text(encoding="utf-8"))
 
     arc = Archive(data_dir, "motion")
-    for name in T.SPRITES:
-        m = ui_sprites.build_motion(name)
-        arc.put(name, m.build())
-        log(f"    {name}")
+    # обходимо аркуш за аркушем: у памʼяті лежить рівно один, а не вся графіка разом
+    for idx, fname in enumerate(man["sheets"]):
+        sheet = Image.open(DATA / fname).convert("RGBA")
+        for name, entry in man["motions"].items():
+            if entry.get("sheet") != idx:
+                continue
+            # архів передаємо: інакше кожен моушен відкривав би свій і перечитував гігабайт
+            m = ui_tex.Motion(name, archive=arc)
+            ui_apply.apply(m, name, sheet, man)
+            # put_shelled, не put: стиснути одразу і не тримати сирі атласи до install()
+            arc.put_shelled(name, m.build())
+            log(f"    {name}")
+        sheet.close()
     arc.install()
-    log("  написи на кнопках і плашках — готово")
+    log(f"  написи, плашки й сторінки форуму — готово ({len(man['motions'])} наборів)")
 
 
 # ---------------------------------------------------------------- головне
@@ -814,7 +813,7 @@ def main() -> int:
         patch_config(data_dir, with_font="font" in parts)
         save_state(data_dir, game, ("config",))
     if "ui" in parts:
-        log("Написи на кнопках і плашках (найдовша частина, кілька хвилин)…")
+        log("Написи, плашки імен і сторінки форуму…")
         patch_ui(data_dir)
         save_state(data_dir, game, ("motion",))
 

@@ -21,13 +21,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Ліцензія MIT вище стосується ЛИШЕ коду: тека `patcher/`, `build_exe.py`, а також
-таблиці `data/config_ui.py` і `data/ui_sprites_table.py` — це код, хоч і лежить
-поруч із даними.
+таблиця `data/config_ui.py` — це код, хоч і лежить поруч із даними.
 
 --------------------------------------------------------------------------------
 
 Переклад і документація — Creative Commons BY-NC-SA 4.0.
-Стосується `data/scenario_ua.tsv` і `data/extras_ua.tsv`.
+Стосується `data/scenario_ua.tsv`, `data/extras_ua.tsv`, а також `data/ui_pack.webp`
+і `data/ui_pack.json`: це намальовані нами написи, а не графіка гри.
 https://creativecommons.org/licenses/by-nc-sa/4.0/deed.uk
 
 Коротко: користуйтеся, змінюйте й поширюйте — некомерційно, зі згадкою джерела
@@ -35,9 +35,13 @@ https://creativecommons.org/licenses/by-nc-sa/4.0/deed.uk
 
 --------------------------------------------------------------------------------
 
-Шрифти в теці `fonts/` — під SIL Open Font License 1.1, поширюються без змін:
-Oswald (Vernon Adams, Kalapi Gajjar, Cyreal), EB Garamond (Georg Duffner,
-Octavio Pardo), Source Sans 3 (Adobe Systems). Тексти ліцензій — у fonts/OFL.txt.
+Шрифт у теці `fonts/` — Source Sans 3 (Adobe Systems) під SIL Open Font
+License 1.1, поширюється без змін. Текст ліцензії — у fonts/OFL.txt.
+
+Написи на кнопках і плашках намальовано ще й гарнітурами Oswald (Vernon Adams,
+Kalapi Gajjar, Cyreal) та EB Garamond (Georg Duffner, Octavio Pardo) — теж під
+OFL. Самі гарнітури сюди не входять: у `data/ui_pack.webp` лежать уже готові
+зображення, а не шрифти.
 
 Окремо про шрифт, яким гра малює текст. Інсталятор збирає його НА ВАШОМУ
 КОМП'ЮТЕРІ з двох джерел: японської гарнітури, яка вже є у вашій копії гри, і

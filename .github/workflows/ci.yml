@@ -26,12 +26,12 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: pip install pillow fonttools zstandard
+        run: pip install pillow fonttools zstandard texture2ddecoder
       - name: Run tests that need no game files
         run: python tests/test_patcher.py
       - name: Import every module
         run: |
-          python -c "import sys; sys.path[:0]=['patcher','data']; import patch, m2archive, m2crypt, psb, ui_tex, ui_sprites, build_font; print('all modules imported')"
+          python -c "import sys; sys.path[:0]=['patcher','data']; import patch, m2archive, m2crypt, psb, ui_tex, ui_apply, build_font, texture2ddecoder; print('all modules imported')"
       - name: Show help
         run: python -m patcher.patch --help
 
