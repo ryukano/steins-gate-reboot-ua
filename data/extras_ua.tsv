@@ -1258,9 +1258,9 @@ mail	FM_From_DAR0401	subject	Скажу_як_є
 mail	FM_From_DAR0901	body	Щодо камер схову: велика, права нижня, зайнята. І що це має значити? І взагалі, не гоняй мене з дорученнями в таку рань, бовдуре! ヽ(`Д´)ﾉ
 mail	FM_From_DAR0901	sender	Дару
 mail	FM_From_DAR0901	subject	Перевірив
-mail	FM_From_KRS0301	body	Окабе — пусто
+mail	FM_From_KRS0301	body	Okabe was an
 mail	FM_From_KRS0301	sender	Асистентка
-mail	FM_From_KRS0302	body	головий!
+mail	FM_From_KRS0302	body	airhead!
 mail	FM_From_KRS0302	sender	Асистентка
 mail	FM_From_KRS0303	body	Дуже хотіла с
 mail	FM_From_KRS0303	sender	Асистентка
@@ -2233,7 +2233,7 @@ mail	RM_From_SUZ02_03_D	subject	Там, де я
 mail	RM_From_SUZ02_03_E	body	Simple is best, хіба ні? У велосипеда базова конструкція не змінилася вже сто років. А, але на витривалість я слабка.
 mail	RM_From_SUZ02_03_E	sender	Воїн На Півставки
 mail	RM_From_SUZ02_03_E	subject	Simple is best
-mail	RM_From_SUZ03_01_A	body	Їсти хочу-у. Сьогодні знову без сніданку. Але й грошей майже нема. До речі, а в Акібі є місця, де можна набрати «комах чи бур'яну»? Якщо є, я своїми «навичками виживання» голод переб'ю.
+mail	RM_From_SUZ03_01_A	body	Їсти хочу-у. Сьогодні знову без сніданку. А грошей майже не лишилося. До речі, а десь в Акібі можна роздобути «комах чи їстівної трави»? Якщо є — задію свої «навички виживання» й переб'ю голод.
 mail	RM_From_SUZ03_01_A	sender	Воїн На Півставки
 mail	RM_From_SUZ03_01_A	subject	Голод
 mail	RM_From_SUZ03_02_A	body	Якщо правильно приготувати, вони на диво смачні.
@@ -2751,10 +2751,10 @@ mail	RM_Res_SUZ02_03_B1	sender	Воїн На Півставки
 mail	RM_Res_SUZ02_03_B1	subject	Re: Життєвий принцип?
 mail	RM_Res_SUZ03_01_A1	body	Ти збираєшся їсти комах? Оце сила…
 mail	RM_Res_SUZ03_01_A1	sender	Воїн На Півставки
-mail	RM_Res_SUZ03_01_A1	subject	Re: Голодна
+mail	RM_Res_SUZ03_01_A1	subject	Re: Голод
 mail	RM_Res_SUZ03_01_A2	body	У яких же умовах ти виросла?
 mail	RM_Res_SUZ03_01_A2	sender	Воїн На Півставки
-mail	RM_Res_SUZ03_01_A2	subject	Re: Голодна
+mail	RM_Res_SUZ03_01_A2	subject	Re: Голод
 mail	RM_Res_SUZ04_01_A1	body	На жаль, тепер саме моє і є символом Акіби — міста хаосу. Звикай.
 mail	RM_Res_SUZ04_01_A1	sender	Воїн На Півставки
 mail	RM_Res_SUZ04_01_A1	subject	Re: Акіхабара ж
