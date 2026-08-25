@@ -363,7 +363,7 @@ tips	173	note	"Скорочення від «Делоріан-мейл» — л�
 tips	173	ruby	
 tips	174	ctgr	Отаку
 tips	174	name	Цундере
-tips	174	note	Героїня, яка на людях колюча й задерикувата (цун), а наодинці розпливається від нежностей (дере). Щоправда, останніми роками це визначення стає все розмитішим.
+tips	174	note	Героїня, яка на людях колюча й задерикувата (цун), а наодинці стає ніжною і лагідною (дере). Щоправда, останніми роками межі цього означення дедалі розмиваються.
 tips	174	ruby	
 tips	175	ctgr	Інше
 tips	175	name	Теорія хаосу
@@ -1262,15 +1262,15 @@ mail	FM_From_KRS0301	body	Okabe was an
 mail	FM_From_KRS0301	sender	Асистентка
 mail	FM_From_KRS0302	body	airhead!
 mail	FM_From_KRS0302	sender	Асистентка
-mail	FM_From_KRS0303	body	Дуже хотіла с
+mail	FM_From_KRS0303	body	Дуже хотіла
 mail	FM_From_KRS0303	sender	Асистентка
-mail	FM_From_KRS0304	body	пати, перепил
+mail	FM_From_KRS0304	body	спати, тому
 mail	FM_From_KRS0304	sender	Асистентка
-mail	FM_From_KRS0305	body	а кави, тепер
+mail	FM_From_KRS0305	body	перепила кав
 mail	FM_From_KRS0305	sender	Асистентка
-mail	FM_From_KRS0306	body	Скільки симво
+mail	FM_From_KRS0306	body	Скільки симв
 mail	FM_From_KRS0306	sender	Асистентка
-mail	FM_From_KRS0307	body	лів проходить?
+mail	FM_From_KRS0307	body	олів пройде?
 mail	FM_From_KRS0307	sender	Асистентка
 mail	FM_From_KRS0308	body	What's up? I
 mail	FM_From_KRS0308	sender	Асистентка
@@ -1278,27 +1278,27 @@ mail	FM_From_KRS0309	body	t's all good
 mail	FM_From_KRS0309	sender	Асистентка
 mail	FM_From_KRS0310	body	! Bye.
 mail	FM_From_KRS0310	sender	Асистентка
-mail	FM_From_KRS0311	body	Я — Макісе Ку
+mail	FM_From_KRS0311	body	Я — Макісе К
 mail	FM_From_KRS0311	sender	Асистентка
-mail	FM_From_KRS0312	body	рісу, а Кріст
+mail	FM_From_KRS0312	body	урісу, Кріст
 mail	FM_From_KRS0312	sender	Асистентка
-mail	FM_From_KRS0313	body	іна — це не
+mail	FM_From_KRS0313	body	іна — не моє
 mail	FM_From_KRS0313	sender	Асистентка
-mail	FM_From_KRS0314	body	Три повідомле
+mail	FM_From_KRS0314	body	Максимум три
 mail	FM_From_KRS0314	sender	Асистентка
-mail	FM_From_KRS0315	body	ння — це межа
+mail	FM_From_KRS0315	body	листи? Решта
 mail	FM_From_KRS0315	sender	Асистентка
-mail	FM_From_KRS0316	body	? Далі зникає
+mail	FM_From_KRS0316	body	зникає безсл
 mail	FM_From_KRS0316	sender	Асистентка
-mail	FM_From_KRS0317	body	Байт на симво
+mail	FM_From_KRS0317	body	Байт впливає
 mail	FM_From_KRS0317	sender	Асистентка
-mail	FM_From_KRS0318	body	л міняє межу?
+mail	FM_From_KRS0318	body	на ліміт?
 mail	FM_From_KRS0318	sender	Асистентка
-mail	FM_From_KRS0319	body	абвгґдежзи
+mail	FM_From_KRS0319	body	абвгґдеєжзиі
 mail	FM_From_KRS0319	sender	Асистентка
-mail	FM_From_KRS0320	body	ійклмнопрс
+mail	FM_From_KRS0320	body	їйклмнопрсту
 mail	FM_From_KRS0320	sender	Асистентка
-mail	FM_From_KRS0321	body	туфхцчшщюя
+mail	FM_From_KRS0321	body	фхцчшщьюя
 mail	FM_From_KRS0321	sender	Асистентка
 mail	FM_From_KRS0322	body	ABCDEFGHIJKL
 mail	FM_From_KRS0322	sender	Асистентка
@@ -1308,21 +1308,21 @@ mail	FM_From_KRS0324	body	YZ
 mail	FM_From_KRS0324	sender	Асистентка
 mail	FM_From_KRS0325	body	Тепер ясно
 mail	FM_From_KRS0325	sender	Асистентка
-mail	FM_From_KRS0326	body	6 симв. (2-байт)
+mail	FM_From_KRS0326	body	2-байтних: 6
 mail	FM_From_KRS0326	sender	Асистентка
-mail	FM_From_KRS0327	body	12 симв. (1-байт)
+mail	FM_From_KRS0327	body	1-байтних:12
 mail	FM_From_KRS0327	sender	Асистентка
-mail	FM_From_KRS0328	body	таймер змінився
+mail	FM_From_KRS0328	body	таймер 60 —
 mail	FM_From_KRS0328	sender	Асистентка
-mail	FM_From_KRS0329	body	на 60 секунд!
+mail	FM_From_KRS0329	body	час змінився
 mail	FM_From_KRS0329	sender	Асистентка
 mail	FM_From_KRS0330	body	час доставки
 mail	FM_From_KRS0330	sender	Асистентка
-mail	FM_From_KRS0331	body	залежить від таймера
+mail	FM_From_KRS0331	body	від таймера!
 mail	FM_From_KRS0331	sender	Асистентка
-mail	FM_From_KRS0332	body	1 сек = 1 година
+mail	FM_From_KRS0332	body	1 с = 1 год
 mail	FM_From_KRS0332	sender	Асистентка
-mail	FM_From_KRS0333	body	ще раз, будь ласка!
+mail	FM_From_KRS0333	body	1 more plz!
 mail	FM_From_KRS0333	sender	Асистентка
 mail	FM_From_KRS0901	body	"Зустрілася з Маюрі. Їдемо в Аріаке
 Як не крути, а трохи хвилююся, лол"
@@ -1564,21 +1564,21 @@ mail	FM_From_MOE0906	body	Звідки ти знаєш про FB? Де ти це
 mail	FM_From_MOE0906	sender	Блискучий Палець
 mail	FM_From_OKA0301	body	021219343537
 mail	FM_From_OKA0301	sender	Темний Фенікс
-mail	FM_From_OKA0302	body	Купи ЛОТО 6
+mail	FM_From_OKA0302	body	Купи Лото-6
 mail	FM_From_OKA0302	sender	Темний Фенікс
-mail	FM_From_OKA0303	body	точно виграш!
+mail	FM_From_OKA0303	body	100% виграє!
 mail	FM_From_OKA0303	sender	Темний Фенікс
-mail	FM_From_OKA0401	body	Не бійся погроз
+mail	FM_From_OKA0401	body	Не слухай Кр
 mail	FM_From_OKA0401	sender	Темний Фенікс
-mail	FM_From_OKA0402	body	Асистентки! Слі
+mail	FM_From_OKA0402	body	іс! Стеж за
 mail	FM_From_OKA0402	sender	Темний Фенікс
-mail	FM_From_OKA0403	body	дкуй за Судзухою!
+mail	FM_From_OKA0403	body	Судзухою!
 mail	FM_From_OKA0403	sender	Темний Фенікс
-mail	FM_From_OKA0701	body	Слідкування від
+mail	FM_From_OKA0701	body	Не стеж! Той
 mail	FM_From_OKA0701	sender	Темний Фенікс
-mail	FM_From_OKA0702	body	мінити. Той лис
+mail	FM_From_OKA0702	body	лист — паст
 mail	FM_From_OKA0702	sender	Темний Фенікс
-mail	FM_From_OKA0703	body	т — пастка SERN.
+mail	FM_From_OKA0703	body	ка SERN!
 mail	FM_From_OKA0703	sender	Темний Фенікс
 mail	FM_From_SUZ0401	body	Прощай.
 mail	FM_From_SUZ0401	sender	Воїн На Півставки
