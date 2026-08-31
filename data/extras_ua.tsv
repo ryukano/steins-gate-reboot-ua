@@ -1580,10 +1580,10 @@ mail	FM_From_OKA0702	body	лист — паст
 mail	FM_From_OKA0702	sender	Темний Фенікс
 mail	FM_From_OKA0703	body	ка SERN!
 mail	FM_From_OKA0703	sender	Темний Фенікс
-mail	FM_From_SUZ0401	body	Прощай.
+mail	FM_From_SUZ0401	body	Прощавай.
 mail	FM_From_SUZ0401	sender	Воїн На Півставки
 mail	FM_From_SUZ0401	subject	Вибач
-mail	FM_From_SUZ0601	body	Прощай.
+mail	FM_From_SUZ0601	body	Прощавай.
 mail	FM_From_SUZ0601	sender	Джон Тайтор
 mail	FM_From_SUZ0601	subject	Дякую
 mail	FM_From_TEN0901	body	"M4, може, ти й справді не надто вправна з людьми. Але це можна назвати і твоєю особливістю. Та й зі мною ж ми якось порозумілися, хіба ні? Щиро кажучи, я не знаю нікого, хто працював би так віддано, як ти. Я тобі дуже вдячна. І я рада, що ти стала Раундером. Навіть якщо більше ніхто цього не цінує, я на тебе дивлюся уважно. Пиши мені будь-коли, не соромся.
@@ -1716,7 +1716,7 @@ mail	FM_To_OKA0301	body	021219343537 Купи Лото-6 100% виграє!
 mail	FM_To_OKA0301	sender	ТелефоноХвильовка (робоча назва)
 mail	FM_To_OKA0401	body	Не піддавайся Курісу, сідай на хвіст Судзусі!
 mail	FM_To_OKA0401	sender	ТелефоноХвильовка (робоча назва)
-mail	FM_To_OKA0601	body	Стеження відміна, той лист — пастка SERN
+mail	FM_To_OKA0601	body	Не стеж! Той лист — пастка SERN!
 mail	FM_To_OKA0601	sender	ТелефоноХвильовка (робоча назва)
 mail	FM_To_TIT0201	body	"・2015 року розпочнеться Третя світова війна
 </d>・До 2036 року Земля забруднена після ядерної війни
