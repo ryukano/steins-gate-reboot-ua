@@ -708,8 +708,30 @@ def patch_font(data_dir: Path, tmp: Path):
         sys.argv = saved
 
     font_arc.put(FONT_FILE + ".m", out.read_bytes())
+
+    # екран Observer (flow.nut) малює написи шрифтом SourceHanSansJP, у якому
+    # кирилиця без ІіЇїЄєҐґ. Доливаємо лише браковані літери з того ж донора —
+    # кирилиця Source Han і так походить від Source Sans, тож стиль збігається.
+    flow_base = tmp / "flow_base.otf"
+    flow_base.write_bytes(font_arc.get("sourcehansansjp-medium.otf.m"))
+    flow_out = tmp / "flow_uk.ttf"
+    sys.argv = ["build_font", "--base", str(flow_base), "--fill-missing",
+                "--donor", str(FONTS / "SourceSans3-Semibold.ttf"),
+                "--family", "SGRE UK Flow", "--out", str(flow_out)]
+    try:
+        build_font.main()
+    finally:
+        sys.argv = saved
+    font_arc.put("sourcehansansjp-medium.otf.m", flow_out.read_bytes())
+
+    # растрові textfont12/24 мають лише російську кирилицю —
+    # додаємо ІіЇїЄєҐґ із наявних пікселів атласа
+    import textfont_ua
+    textfont_ua.apply(font_arc)
+
     font_arc.install()
-    log(f"  шрифт: зібрано ({out.stat().st_size // 1024} КБ) і встановлено")
+    log(f"  шрифт: зібрано ({out.stat().st_size // 1024} КБ) і встановлено; "
+        f"Observer-шрифт і textfont12/24 доповнено українськими літерами")
 
 
 # ---------------------------------------------------------------- написи на текстурах

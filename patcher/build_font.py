@@ -36,6 +36,9 @@ def main() -> int:
     ap.add_argument("--scale", type=float, default=None, help="масштаб донора; типово capHeight(base)/capHeight(donor)")
     ap.add_argument("--out", default=str(ROOT / "work" / "build" / "sgre_uk.ttf"))
     ap.add_argument("--family", default="SGRE UK Text")
+    ap.add_argument("--fill-missing", action="store_true",
+                    help="лише додати з донора кодпоінти, яких у базі нема (в межах OVERRIDE_RANGES), "
+                         "не перекриваючи наявні — для шрифтів, де свої латиниця й кирилиця вже добрі")
     a = ap.parse_args()
 
     base = TTFont(a.base)
@@ -46,6 +49,10 @@ def main() -> int:
 
     base_cmap = base.getBestCmap()
     donor_cmap = donor.getBestCmap()
+    if a.fill_missing:
+        override = lambda cp: in_override(cp) and cp not in base_cmap
+    else:
+        override = in_override
     base_gs = base.getGlyphSet()
     donor_gs = donor.getGlyphSet()
     base_hmtx = base["hmtx"]
@@ -73,7 +80,7 @@ def main() -> int:
     # 1) базовий шрифт — усе, крім перекритих кодпоінтів
     used_base: set[str] = set()
     for cp, gname in base_cmap.items():
-        if in_override(cp) and cp in donor_cmap:
+        if override(cp) and cp in donor_cmap:
             continue
         cmap[cp] = "b_" + gname
         used_base.add(gname)
@@ -86,7 +93,7 @@ def main() -> int:
     tr = (scale, 0, 0, scale, 0, 0)
     used_donor: set[str] = set()
     for cp, gname in donor_cmap.items():
-        if in_override(cp):
+        if override(cp):
             cmap[cp] = "d_" + gname
             used_donor.add(gname)
     for gname in sorted(used_donor):
