@@ -12,10 +12,26 @@
 """
 from __future__ import annotations
 
+import hashlib
+
 from PIL import Image
 
 from psb import PsbFloat
 from ui_tex import rect_mesh
+
+
+def fingerprint(m) -> str:
+    """Відбиток розкладки атласів моушена: розміри текстур і геометрія всіх спрайтів.
+
+    Рахувати на незайманому моушені, до apply. Пікселі не входять навмисно: перемальований
+    спрайт на тому самому місці накладанню не заважає, а зсунутий — заважає.
+    """
+    parts = []
+    for src, tex in sorted(m.textures().items()):
+        parts.append(f"{src} {tex['width']} {tex['height']} {tex['type']}")
+        for iid, ic in sorted(m.icons(src).items()):
+            parts.append(f"{iid} {float(ic['left'])} {float(ic['top'])} {float(ic['width'])} {float(ic['height'])}")
+    return hashlib.sha1("\n".join(parts).encode()).hexdigest()[:16]
 
 
 def apply(m, name: str, sheet: Image.Image, man: dict) -> bool:

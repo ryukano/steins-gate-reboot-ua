@@ -339,7 +339,7 @@ def load_py(path: Path):
 
 # ------------------------------------------------- версія гри й свіжість резервних копій
 
-BUILT_FOR = "1050"          # ревізія гри, під яку зібрано переклад
+BUILT_FOR = "1062"          # ревізія гри, під яку зібрано переклад
 STATE_FILE = "patch_state.json"
 STEMS = ("scenario", "config", "font", "motion")
 
@@ -471,6 +471,8 @@ def refresh_backups(data_dir: Path, game_dir: Path) -> list[str]:
         sig = signature(cur)
         if sig == state.get("orig", {}).get(stem):
             continue                       # резерв уже відповідає новій версії
+        if sig == state.get("installed", {}).get(stem):
+            continue                       # оновлення цей файл оминуло: у грі досі наш патч
         pair = [(orig / f"{stem}_body.bin", data_dir / f"{stem}_body.bin"),
                 (orig / f"{stem}_info.psb.m", data_dir / f"{stem}_info.psb.m")]
         if not all(src.exists() for _, src in pair):
@@ -493,6 +495,30 @@ def refresh_backups(data_dir: Path, game_dir: Path) -> list[str]:
         import json
         _state_path(data_dir).write_text(json.dumps(state, indent=1), encoding="utf-8")
     return updated
+
+
+def repair_font_backup(data_dir: Path) -> bool:
+    """Повернути оригінал шрифту в резерв, якщо v1.0.0 відклала його вбік.
+
+    Оновлення гри шрифт не чіпало, але v1.0.0 сприйняла наш пропатчений файл за нову версію
+    й поклала його в _orig, а справжній оригінал перейменувала на *.before*. Ознака такого
+    резерву — наш запис всередині архіву: у грі його не буває.
+    """
+    orig = data_dir / "_orig"
+    info = orig / "font_info.psb.m"
+    if not info.exists() or (FONT_FILE + ".m") not in _font_entries(info):
+        return False
+    for spare in sorted(orig.glob("font_info.psb.m.before*")):
+        body = orig / spare.name.replace("font_info.psb.m", "font_body.bin", 1)
+        if body.exists() and (FONT_FILE + ".m") not in _font_entries(spare):
+            spare.replace(info)
+            body.replace(orig / "font_body.bin")
+            return True
+    return False
+
+
+def _font_entries(info: Path) -> set[str]:
+    return set(Psb(unshell(info.read_bytes(), DEFAULT_KEY, "font_info.psb.m")).root["file_info"])
 
 
 # ---------------------------------------------------------------- сценарій
@@ -736,7 +762,8 @@ def patch_font(data_dir: Path, tmp: Path):
 
 # ---------------------------------------------------------------- написи на текстурах
 
-def patch_ui(data_dir: Path):
+def patch_ui(data_dir: Path) -> list[str]:
+    """Повертає моушени, які довелося пропустити."""
     import ui_tex
     ui_tex.DATA = data_dir
 
@@ -748,6 +775,7 @@ def patch_ui(data_dir: Path):
     # Тут лишається накладання — тож гравець отримує рівно те, що ми бачили й перевірили.
     man = json.loads((DATA / "ui_pack.json").read_text(encoding="utf-8"))
 
+    skipped = []
     arc = Archive(data_dir, "motion")
     # обходимо аркуш за аркушем: у памʼяті лежить рівно один, а не вся графіка разом
     for idx, fname in enumerate(man["sheets"]):
@@ -757,13 +785,20 @@ def patch_ui(data_dir: Path):
                 continue
             # архів передаємо: інакше кожен моушен відкривав би свій і перечитував гігабайт
             m = ui_tex.Motion(name, archive=arc)
+            # координати в пакунку дійсні лише для тієї розкладки атласу, під яку його зібрано:
+            # на чужій apply або впаде, або намалює написи поверх чужих спрайтів
+            if entry.get("base") != ui_apply.fingerprint(m):
+                skipped.append(name)
+                log(f"    {name}: у цій версії гри інша графіка — пропускаю, написи лишаться англійськими")
+                continue
             ui_apply.apply(m, name, sheet, man)
             # put_shelled, не put: стиснути одразу і не тримати сирі атласи до install()
             arc.put_shelled(name, m.build())
             log(f"    {name}")
         sheet.close()
     arc.install()
-    log(f"  написи, плашки й сторінки форуму — готово ({len(man['motions'])} наборів)")
+    log(f"  написи, плашки й сторінки форуму — готово ({len(man['motions']) - len(skipped)} наборів)")
+    return skipped
 
 
 # ---------------------------------------------------------------- головне
@@ -803,6 +838,13 @@ def main() -> int:
         log("Готово — у грі знову англійська.")
         return 0
 
+    if repair_font_backup(data_dir):
+        log("  резерв шрифту відновлено з відкладеної копії")
+    for stem in refresh_backups(data_dir, game):
+        log(f"  ! Гру оновлено: {stem} відрізняється від нашої резервної копії.")
+        log(f"    Стару копію відкладено вбік, нову зроблено з поточного файлу.")
+
+    # ревізію читаємо з резерву, тож лише після його оновлення: інакше побачимо стару
     rev = game_revision(data_dir)
     if rev and rev != BUILT_FOR:
         log(f"  ! Ревізія гри {rev}, а переклад зібрано під {BUILT_FOR}.")
@@ -811,11 +853,8 @@ def main() -> int:
     elif rev:
         log(f"  ревізія {rev} — та сама, під яку зібрано переклад")
 
-    for stem in refresh_backups(data_dir, game):
-        log(f"  ! Гру оновлено: {stem} відрізняється від нашої резервної копії.")
-        log(f"    Стару копію відкладено вбік, нову зроблено з поточного файлу.")
-
     parts = a.only or ["scenario", "config", "font", "ui"]
+    skipped: list[str] = []
     t0 = time.time()
     tmp = Path(tempfile.gettempdir()) / "sgre_ua_build"
     tmp.mkdir(parents=True, exist_ok=True)
@@ -836,11 +875,14 @@ def main() -> int:
         save_state(data_dir, game, ("config",))
     if "ui" in parts:
         log("Написи, плашки імен і сторінки форуму…")
-        patch_ui(data_dir)
+        skipped = patch_ui(data_dir)
         save_state(data_dir, game, ("motion",))
 
     save_state(data_dir, game)
     log(f"\nГотово за {time.time() - t0:.0f} с.")
+    if skipped:
+        log(f"Не перекладено графіку ({', '.join(skipped)}): гру оновили після виходу цієї версії.")
+        log("Гра працює, просто ці написи англійською. Напишіть issue — випустимо оновлення.")
     log("У грі відкрийте налаштування й оберіть мову «Українська».")
     log("Відкат: запустіть інсталятор ще раз і оберіть «Повернути англійську».")
     return 0

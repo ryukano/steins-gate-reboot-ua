@@ -168,6 +168,58 @@ def test_backups_untouched_without_proof(tmp: Path):
           (orig / "motion_body.bin").read_bytes() == b"ORIGINAL-motion")
 
 
+def test_update_keeps_untouched_file_out_of_backup(tmp: Path):
+    print("файл, який оновлення оминуло, не потрапляє в резерв")
+    game, data, orig, lib = _sandbox(tmp)
+    (lib / f"appmanifest_{patch.APPID}.acf").write_text(
+        '"AppState"{"buildid" "2000" "installdir" "SGRE"}', encoding="utf-8")
+    for stem in ("scenario", "config", "motion"):
+        (data / f"{stem}_body.bin").write_bytes(b"NEWVERSION-" + stem.encode())
+    check("оновлено лише змінені частини",
+          sorted(patch.refresh_backups(data, game)) == ["config", "motion", "scenario"])
+    check("у резерві шрифту лишився оригінал",
+          (orig / "font_body.bin").read_bytes() == b"ORIGINAL-font")
+    check("наш шрифт нікуди не відкладено", not list(orig.glob("font_body.bin.before*")))
+
+
+def test_font_backup_repair(tmp: Path):
+    print("резерв шрифту, зіпсований v1.0.0, відновлюється")
+    _, data, orig, _ = _sandbox(tmp)
+    (orig / "font_info.psb.m.before20261105_120000").write_bytes(b"vanilla")
+    (orig / "font_body.bin.before20261105_120000").write_bytes(b"ORIGINAL-font")
+    (orig / "font_info.psb.m").write_bytes(b"ours")
+    (orig / "font_body.bin").write_bytes(b"PATCHED-font")
+    real = patch._font_entries
+    patch._font_entries = lambda p: {patch.FONT_FILE + ".m"} if p.read_bytes() == b"ours" else {"other"}
+    try:
+        check("відновлено", patch.repair_font_backup(data) is True)
+        check("оригінал у резерві", (orig / "font_body.bin").read_bytes() == b"ORIGINAL-font")
+        check("повторно нічого не робить", patch.repair_font_backup(data) is False)
+    finally:
+        patch._font_entries = real
+
+
+def test_fingerprint():
+    print("відбиток розкладки атласу")
+    import ui_apply
+
+    class Fake:
+        def __init__(self, left=1.0, size=8):
+            self.tex = {"tex#000": {"width": size, "height": size, "type": "BC7"}}
+            self.ic = {"0001": {"left": left, "top": 2, "width": 3, "height": 4}}
+
+        def textures(self):
+            return self.tex
+
+        def icons(self, src):
+            return self.ic
+
+    base = ui_apply.fingerprint(Fake())
+    check("стабільний", base == ui_apply.fingerprint(Fake()))
+    check("помічає зсув спрайта", base != ui_apply.fingerprint(Fake(left=5.0)))
+    check("помічає зміну атласу", base != ui_apply.fingerprint(Fake(size=16)))
+
+
 def test_buildid_parsing(tmp: Path):
     print("читання buildid із маніфесту Steam")
     game, _, _, lib = _sandbox(tmp, buildid="24796682")
@@ -199,6 +251,8 @@ def test_ui_pack_manifest():
     bad_paste = [n for n, e in man["motions"].items()
                  for rec in e.get("paste", []) if any(v is None for v in rec[1:])]
     check("у paste нема непроставлених координат", not bad_paste, ", ".join(bad_paste[:5]))
+    no_base = [n for n, e in man["motions"].items() if not e.get("base")]
+    check("кожен моушен має відбиток розкладки", not no_base, ", ".join(no_base[:5]))
 
 
 
@@ -220,6 +274,9 @@ def main() -> int:
         test_backups_refresh_on_real_update(base / "s2")
         test_backups_untouched_without_proof(base / "s3")
         test_buildid_parsing(base / "s4")
+        test_update_keeps_untouched_file_out_of_backup(base / "s5")
+        test_font_backup_repair(base / "s6")
+        test_fingerprint()
         test_ui_pack_manifest()
     finally:
         if old_home is not None:
